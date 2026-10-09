@@ -46,3 +46,16 @@ class PositionalEncoding(nn.Module):
         # Add the positional encoding to the input embeddings
         x = x + (self.pe[:, :x.shape[1], :]).require_grad_(False)
         return self.dropout(x)
+
+
+class LayerNormalization(nn.Module):
+    def __init__(self, eps: float = 1e-6) -> None:
+        super().__init__()
+        self.eps = eps #we need e for numerical stability
+        self.alpha = nn.Parameter(torch.ones(1)) #scaling factor , multiplied
+        self.bias = nn.Parameter(torch.zeros(1)) #bias term, added
+
+    def forward(self, x):
+        mean = x.mean(dim=-1, keepdim=True)
+        std = x.std(dim=-1, keepdim=True)
+        return self.alpha * (x - mean) / (std + self.eps) + self.bias
