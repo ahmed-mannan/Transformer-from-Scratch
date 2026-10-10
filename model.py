@@ -150,3 +150,39 @@ class Encoder(nn.Module):
         for layer in self.layers:
             x = layer(x, mask)  # Pass the input through each encoder block
         return self.norm(x)  # Apply final layer normalization
+
+
+class DecoderBlock(nn.Module):
+    def __init__(self, self_attention_block: MultiHeadAttention, cross_attention_block: MultiHeadAttention, feed_forward_block: FeedForwardBlock, dropout: float) -> None:
+        super().__init__()
+        self.self_attention_block = self_attention_block
+        self.cross_attention_block = cross_attention_block
+        self.feed_forward_block = feed_forward_block
+        self.residual_connections = nn.Module([ResidualConnection(dropout) for _ in range(3)])  # Three residual connections, one for self-attention, one for cross-attention, and one for feed-forward
+
+    def forward(self, x, encoder_output, src_mask, tgt_mask):
+        x = self.residual_connections[0](x, lambda x: self.self_attention_block(x, x, x, tgt_mask))  # Self-attention with residual connection
+        x = self.residual_connections[1](x, lambda x: self.cross_attention_block(x, encoder_output, encoder_output, src_mask))  # Cross-attention with residual connection
+        x = self.residual_connections[2](x, self.feed_forward_block)  # Feed-forward with residual connection
+        return x
+
+
+class Decoder(nn.Module):
+    def __init__(self, layers: nn.ModuleList) -> None:
+        super().__init__()
+        self.layers = layers
+        self.norm = LayerNormalization()  # Final layer normalization after all decoder blocks
+
+    def forward(self, x, encoder_output, src_mask, tgt_mask):
+        for layer in self.layers:
+            x = layer(x, encoder_output, src_mask, tgt_mask)  # Pass the input through each decoder block
+        return self.norm(x)  # Apply final layer normalization
+
+
+class ProjectionLayer(nn.Module):
+    def __init__(self, d_model: int, vocab_size: int) -> None:
+        super().__init__()
+        self.proj = nn.Linear(d_model, vocab_size)  # Linear layer to project the decoder output to the vocabulary size
+
+    def forward(self, x):
+        return torch.log_softmax(self.proj(x), dim=-1)  # (batch, seq_len, vocab_size)
