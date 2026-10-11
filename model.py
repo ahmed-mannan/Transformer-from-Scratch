@@ -186,3 +186,68 @@ class ProjectionLayer(nn.Module):
 
     def forward(self, x):
         return torch.log_softmax(self.proj(x), dim=-1)  # (batch, seq_len, vocab_size)
+
+
+class Transformer(nn.Module):
+    def __init__(self, encoder: Encoder, decoder: Decoder, src_embedding: InputEmbedding, tgt_embedding: InputEmbedding, source_position: PositionalEncoding, target_position: PositionalEncoding, projection_layer: ProjectionLayer) -> None:
+        super().__init__()
+        self.encoder = encoder
+        self.decoder = decoder
+        self.src_embedding = src_embedding
+        self.tgt_embedding = tgt_embedding
+        self.source_position = source_position
+        self.target_position = target_position
+        self.projection_layer = projection_layer
+
+    def encode(self, src, src_mask):
+        src = self.src_embedding(src)  # Convert source tokens to embeddings
+        src = self.source_position(src)  # Add positional encodings to the source embeddings
+        return self.encoder(src, src_mask)  # Pass the source embeddings through the encoder
+
+    def decode(self, encoder_output, src_mask, tgt, tgt_mask):
+        tgt = self.tgt_embedding(tgt)  # Convert target tokens to embeddings
+        tgt = self.target_position(tgt)  # Add positional encodings to the target embeddings
+        return self.decoder(tgt, encoder_output, src_mask, tgt_mask)  # Pass the target embeddings and encoder output through the decoder
+
+    def project(self, x):
+        return self.projection_layer(x)  # Project the decoder output to the vocabulary size and apply log softmax
+
+def build_transformer(src_vocab_size: int, tgt_vocab_size: int, src_seq_len: int, tgt_seq_len: int, d_model: int = 512, num_heads: int = 8, d_ff: int = 2048, num_layers: int = 6, dropout: float = 0.1) -> Transformer:
+    src_embedding = InputEmbedding(d_model, src_vocab_size)
+    tgt_embedding = InputEmbedding(d_model, tgt_vocab_size)
+    
+    #create the positional encoding layers
+    source_position = PositionalEncoding(d_model, src_seq_len, dropout)
+    target_position = PositionalEncoding(d_model, tgt_seq_len, dropout)
+
+    #create the encoder block
+    encoder_blocks = []
+    for _ in range(num_layers):
+        self_attention_block = MultiHeadAttention(d_model, num_heads, dropout)
+        feed_forward_block = FeedForwardBlock(d_model, d_ff, dropout)
+        encoder_blocks.append(EncoderBlock(self_attention_block, feed_forward_block, dropout))
+
+    #create the decoder block
+    decoder_blocks = []
+    for _ in range(num_layers):
+        decoder_self_attention_block = MultiHeadAttention(d_model, num_heads, dropout)
+        decoder_cross_attention_block = MultiHeadAttention(d_model, num_heads, dropout)
+        feed_forward_block = FeedForwardBlock(d_model, d_ff, dropout)
+        decoder_blocks.append(DecoderBlock(decoder_self_attention_block, decoder_cross_attention_block, feed_forward_block, dropout))
+
+    #Create the encoder and decoder
+    encoder = Encoder(nn.ModuleList(encoder_blocks))
+    decoder = Decoder(nn.ModuleList(decoder_blocks))
+
+    #create the projection layer
+    projection_layer = ProjectionLayer(d_model, tgt_vocab_size)
+
+    #create the transformer model
+    transformer = Transformer(encoder, decoder, src_embedding, tgt_embedding, source_position, target_position, projection_layer)
+
+    #Initialize the parameters
+    for p in transformer.parameters():
+        if p.dim() > 1:
+            nn.init.xavier_uniform_(p)  # Xavier initialization for weights with more than one dimension
+
+    return transformer
