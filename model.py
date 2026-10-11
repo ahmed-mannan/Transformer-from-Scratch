@@ -158,7 +158,7 @@ class DecoderBlock(nn.Module):
         self.self_attention_block = self_attention_block
         self.cross_attention_block = cross_attention_block
         self.feed_forward_block = feed_forward_block
-        self.residual_connections = nn.Module([ResidualConnection(dropout) for _ in range(3)])  # Three residual connections, one for self-attention, one for cross-attention, and one for feed-forward
+        self.residual_connections = nn.ModuleList([ResidualConnection(dropout) for _ in range(3)])  # Three residual connections, one for self-attention, one for cross-attention, and one for feed-forward
 
     def forward(self, x, encoder_output, src_mask, tgt_mask):
         x = self.residual_connections[0](x, lambda x: self.self_attention_block(x, x, x, tgt_mask))  # Self-attention with residual connection
