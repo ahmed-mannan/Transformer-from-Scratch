@@ -1,12 +1,13 @@
 from typing import Any
-import torch
+import torch  # type: ignore[import-not-found]
 import torch.nn as nn
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset  # type: ignore[import-not-found]
 
 class BilingualDataset(Dataset):
     def __init__(self, ds, tokenizer_src, tokenizer_tgt, src_lang, tgt_lang, seq_len) -> None:
         super().__init__()
 
+        self.seq_len = seq_len
         self.ds = ds
         self.tokenizer_src = tokenizer_src
         self.tokenizer_tgt = tokenizer_tgt
